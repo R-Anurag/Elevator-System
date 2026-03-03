@@ -1,0 +1,52 @@
+# ============================================================
+# ELEVATOR SYSTEM - CENTRAL CONFIGURATION
+# Change any value here to adjust functional requirements.
+# No code changes needed.
+# ============================================================
+
+building:
+  floors: 9                   # Total number of floors (1 = ground)
+  elevator_capacity: 8         # Max passengers per elevator cab
+  floor_height_px: 60         # Visual height per floor (frontend only)
+#max weight per elevator could be added as well, but for simplicity we assume all passengers are the same weight and only count by number of people.
+
+simulation:
+  tick_interval_ms: 800        # Time (ms) it takes to move one floor
+  scheduler_strategy: "direction_based"
+  # Options:
+  #   "nearest"          - Assign closest elevator regardless of direction
+  #   "direction_based"  - Prefer elevators already heading the right way
+  #   "idle_preference"  - Always prefer idle elevators first
+# stopping based on mid-lift breakage
+
+elevators:
+  - id: 1
+    name: "Alpha"
+    starting_floor: 1
+    color: "#f59e0b"           # Amber (frontend cab color)
+  - id: 2
+    name: "Beta"
+    starting_floor: 1
+    color: "#3b82f6"           # Blue (frontend cab color)
+  # - id: 3
+  #   name: "Gamma"
+  #   starting_floor: 1
+  #   color: "#ef4444"           # Red (frontend cab color)
+
+modes:
+  emergency_floor: 1           # All elevators go here on fire alarm
+  vip_floors: []             # Floors with VIP / priority service
+  maintenance_ids: []          # List of elevator IDs under maintenance
+                               # e.g. [1] puts elevator 1 offline
+
+database:
+  url: "sqlite:///./elevator.db"
+  # For PostgreSQL: "postgresql+asyncpg://user:pass@host/dbname"
+  echo_sql: false              # Set true to log all SQL queries
+
+api:
+  host: "0.0.0.0"
+  port: 8000
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"

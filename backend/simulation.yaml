@@ -1,0 +1,34 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# simulation.yaml  —  Passenger journey scenario
+#
+# Each entry spawns a cohort of individual passengers on a floor at a given
+# wall-clock offset (seconds from backend startup).
+#
+# Fields:
+#   id            - unique string identifier
+#   source_floor  - floor where passengers appear
+#   dest_floor    - floor they want to reach
+#   direction     - UP | DOWN (must match source→dest relationship)
+#   count         - number of individual people in the group
+#   spawn_at_sec  - seconds after server start when they appear
+#
+# Capacity note: if an elevator cannot fit everyone (count + current
+# passenger_count > capacity), only as many board as fit. The remainder
+# splits into a new group and re-calls the elevator.
+# ─────────────────────────────────────────────────────────────────────────────
+
+passengers:
+  # --- Morning rush (lobby → offices) ---
+  - id: morning_1
+    source_floor: 1
+    dest_floor: 2
+    direction: UP
+    count: 20
+    spawn_at_sec: 4
+
+  - id: morning_2
+    source_floor: 7
+    dest_floor: 8
+    direction: UP
+    count: 50
+    spawn_at_sec: 12
