@@ -177,3 +177,18 @@ async def get_config() -> dict:
         "elevators": [e.model_dump() for e in s.elevators],
         "modes": s.modes.model_dump(),
     }
+
+
+@router.post("/simulation/restart", summary="Restart simulation")
+async def restart_simulation() -> dict:
+    """Restart the simulation, resetting time to 0."""
+    from app.main import simulator
+    import asyncio
+    try:
+        await asyncio.sleep(0.1)
+        await simulator._async_restart()
+        await asyncio.sleep(0.1)
+        return {"message": "Simulation restarted", "elapsed_seconds": 0}
+    except Exception as e:
+        logger.error(f"Restart failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

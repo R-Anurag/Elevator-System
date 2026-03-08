@@ -128,6 +128,7 @@ class Elevator:
             self.status.value,
             self.direction.value,
             self.passenger_count,
+            tuple(self.floor_queue),
         )
 
     def to_dict(self) -> dict:

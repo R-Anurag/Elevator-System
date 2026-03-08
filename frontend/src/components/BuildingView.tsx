@@ -68,9 +68,9 @@ export default function BuildingView({ status, onRequestMade }: Props) {
 
     // Sprite positioning: each shaft is 56px wide, gap 4px, overlay padding 8px each side.
     // To sit just LEFT of the shafts (relative to corridor right edge):
-    //   spriteRight = numElevators * 60 - 36
+    //   spriteRight = numElevators * 60  + 8
     const numElevators = elevators.length;
-    const spriteRightPx = Math.max(48, numElevators * 60 - 36);
+    const spriteRightPx = numElevators * 60 + 8; // 8px padding from shafts
 
     // Floors rendered top-to-bottom (highest floor first)
     const floorNumbers = Array.from(

@@ -4,10 +4,8 @@ FastAPI application entry point.
 
 Startup sequence:
   1. Load config.yaml → Settings
-  2. Create DB tables
-  3. Seed elevator rows from config.yaml
-  4. Start simulation tick loop
-  5. Register REST + WebSocket routers
+  2. Start simulation tick loop
+  3. Register REST + WebSocket routers
 """
 from __future__ import annotations
 
@@ -17,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.database import init_db
+from app.db_client import get_db_client
 from app.services.controller import ElevatorController
 from app.services.simulator import SimulationService
 from app.services.passenger_sim import PassengerSimulationService
@@ -71,20 +69,16 @@ app.include_router(ws_router)
 
 @app.on_event("startup")
 async def startup() -> None:
-    await init_db()
-    
-    # Restore state from database first
+    # Restore state from database
     await controller.load_state()
     
-    # Only seed elevators that don't exist in DB
-    from app.database import AsyncSessionLocal
-    from app.db.repositories import ElevatorRepository
-    async with AsyncSessionLocal() as session:
-        existing = await ElevatorRepository.load_all(session)
-        existing_ids = {e.id for e in existing}
-        for elev in controller.elevators.values():
-            if elev.id not in existing_ids:
-                await ElevatorRepository.upsert(session, elev)
+    # Seed elevators that don't exist in DB
+    db_client = get_db_client()
+    existing = await db_client.load_all_elevators()
+    existing_ids = {e["id"] for e in existing}
+    for elev in controller.elevators.values():
+        if elev.id not in existing_ids:
+            await db_client.upsert_elevator(elev)
     
     simulator.start()
     passenger_sim.start()
@@ -99,6 +93,7 @@ async def startup() -> None:
 async def shutdown() -> None:
     simulator.stop()
     passenger_sim.stop()
+    await get_db_client().close()
 
 
 @app.get("/", include_in_schema=False)

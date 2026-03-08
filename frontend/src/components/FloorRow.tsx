@@ -55,18 +55,18 @@ export default function FloorRow({
             {/* Call buttons */}
             <div className="call-buttons">
                 <button
-                    className={`call-btn up ${upActive ? "active" : ""}`}
+                    className={`call-btn call-up ${upActive ? "active" : ""}`}
                     onClick={() => onRequest(floor, "UP")}
                     aria-label={`Call elevator up from floor ${floor}`}
-                    title="Call Up"
+                    disabled={upActive}
                 >
                     ▲
                 </button>
                 <button
-                    className={`call-btn down ${downActive ? "active" : ""}`}
+                    className={`call-btn call-down ${downActive ? "active" : ""}`}
                     onClick={() => onRequest(floor, "DOWN")}
                     aria-label={`Call elevator down from floor ${floor}`}
-                    title="Call Down"
+                    disabled={downActive}
                 >
                     ▼
                 </button>

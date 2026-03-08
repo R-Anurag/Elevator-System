@@ -15,8 +15,7 @@ import logging
 from typing import TYPE_CHECKING, Callable, Awaitable
 
 from app.config import get_settings
-from app.database import AsyncSessionLocal
-from app.db.repositories import ElevatorRepository
+from app.db_client import get_db_client
 from app.domain.models import Direction, Elevator, ElevatorStatus
 
 if TYPE_CHECKING:
@@ -59,6 +58,7 @@ class SimulationService:
         if self._running:
             return
         self._running = True
+        self._start_time = asyncio.get_event_loop().time()
         # Initialize state snapshots
         for elevator in self._controller.elevators.values():
             self._prev_states[elevator.id] = elevator.get_state_snapshot()
@@ -75,6 +75,22 @@ class SimulationService:
         if self._task:
             self._task.cancel()
         logger.info("Simulation stopped")
+
+    def restart(self) -> None:
+        """Restart the simulation, resetting time and state to initial conditions."""
+        self.stop()
+        asyncio.create_task(self._async_restart())
+        logger.info("Simulation restart initiated")
+
+    async def _async_restart(self) -> None:
+        """Async restart helper."""
+        await self._controller.reset_state_with_db()
+        if self._passenger_sim:
+            self._passenger_sim.reset()
+            self._passenger_sim.start()
+        self._start_time = asyncio.get_event_loop().time()
+        self.start()
+        logger.info("Simulation restarted")
 
     # ------------------------------------------------------------------
     # Main loop
@@ -114,9 +130,9 @@ class SimulationService:
         
         # Batch write only changed elevators
         if changed_elevators:
-            async with AsyncSessionLocal() as session:
-                for elevator in changed_elevators:
-                    await ElevatorRepository.upsert(session, elevator)
+            db_client = get_db_client()
+            for elevator in changed_elevators:
+                await db_client.upsert_elevator(elevator)
             logger.debug("Persisted %d elevator state changes", len(changed_elevators))
 
     async def _step_elevator(self, elevator: Elevator) -> None:

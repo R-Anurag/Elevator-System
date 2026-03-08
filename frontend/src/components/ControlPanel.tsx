@@ -4,7 +4,7 @@
 
 import React from "react";
 import { ElevatorState, SystemStatus } from "@/types/elevator";
-import { setMaintenance } from "@/lib/api";
+import { setMaintenance, restartSimulation } from "@/lib/api";
 
 interface Props {
     status: SystemStatus | null;
@@ -24,6 +24,10 @@ export default function ControlPanel({ status, onMaintenanceToggle }: Props) {
         const making = elev.status !== "MAINTENANCE";
         await setMaintenance(elev.id, making);
         onMaintenanceToggle();
+    };
+
+    const handleRestart = async () => {
+        await restartSimulation();
     };
 
     return (
@@ -105,6 +109,9 @@ export default function ControlPanel({ status, onMaintenanceToggle }: Props) {
                     <span>Pending</span>
                     <span>{status?.pending_requests ?? 0}</span>
                 </div>
+                <button className="btn-restart" onClick={handleRestart}>
+                    🔄 RESTART SIMULATION
+                </button>
             </div>
         </aside>
     );

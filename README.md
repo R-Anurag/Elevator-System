@@ -1,50 +1,61 @@
 # Elevator System
 
-A real-time elevator management system with FastAPI backend and Next.js frontend.
+A real-time elevator management system with microservices architecture: FastAPI backend, database service, and Next.js frontend.
 
-## Project Structure
-
-- `backend/` - FastAPI server with WebSocket support
-- `frontend/` - Next.js React application
-
-## Setup
-
-### Backend
+## Quick Start
 
 ```bash
-cd backend
-pip install -r requirements.txt
-python run.py
+# 1. Create database password secret
+echo "YOUR_STRONG_PASSWORD" > secrets/db_password.txt
+
+# 2. Build and run
+docker-compose up --build -d
+
+# 3. Access the application
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8000/docs
 ```
 
-The API will run on `http://localhost:8000`
+## Architecture
 
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
 ```
-
-The app will run on `http://localhost:3000`
-
-## Configuration
-
-### Backend
-- Copy `config.yaml` and adjust settings as needed
-- Database is created automatically on first run
-
-### Frontend
-- Create `.env.local` with:
-  ```
-  NEXT_PUBLIC_API_URL=http://localhost:8000
-  NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
-  ```
+Frontend (Next.js) → Backend (FastAPI) → DB Service (FastAPI) → PostgreSQL
+     :3000               :8000                :8001              :5432
+```
 
 ## Features
 
-- Real-time elevator monitoring via WebSocket
-- Multi-elevator management
-- Request queue handling
-- Interactive UI with live updates
+- ✅ Real-time elevator monitoring via WebSocket
+- ✅ Multi-elevator management with intelligent scheduling
+- ✅ Interactive UI with live animations
+- ✅ PostgreSQL persistence with Docker secrets
+- ✅ Microservices architecture
+- ✅ Production-ready with resource limits
+- ✅ Request history and analytics
+- ✅ Maintenance and emergency modes
+
+## Configuration
+
+Edit `backend/config.yaml` to configure:
+- Number of floors and elevators
+- Elevator capacity
+- Scheduling strategy (nearest, direction_based, idle_preference)
+- Simulation speed
+- Emergency settings
+
+## Technology Stack
+
+- **Frontend**: Next.js 16, React 19, TypeScript
+- **Backend**: FastAPI, Python 3.13, WebSockets
+- **Database Service**: FastAPI, SQLAlchemy, asyncpg
+- **Database**: PostgreSQL 16
+- **Deployment**: Docker, Docker Compose
+
+## Documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Detailed system architecture
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Production deployment guide
+
+## License
+
+MIT

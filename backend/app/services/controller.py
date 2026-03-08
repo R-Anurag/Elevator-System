@@ -18,12 +18,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from app.config import get_settings
-from app.database import AsyncSessionLocal
-from app.db.repositories import (
-    ElevatorRepository,
-    HistoryRepository,
-    RequestRepository,
-)
+from app.db_client import get_db_client
 from app.domain.models import (
     Direction,
     Elevator,
@@ -88,32 +83,33 @@ class ElevatorController:
 
     async def load_state(self) -> None:
         """Restore elevator state and pending requests from database."""
-        async with AsyncSessionLocal() as session:
-            # Load elevator positions/status
-            elevators_orm = await ElevatorRepository.load_all(session)
-            for orm in elevators_orm:
-                if orm.id in self.elevators:
-                    self.elevators[orm.id].current_floor = orm.current_floor
-                    self.elevators[orm.id].status = ElevatorStatus(orm.status)
-                    logger.info("Restored elevator %s: floor=%s status=%s", orm.id, orm.current_floor, orm.status)
-            
-            # Restore pending/assigned requests
-            pending_orm = await RequestRepository.get_pending(session)
-            for req_orm in pending_orm:
-                req = ElevatorRequest(
-                    id=req_orm.id,
-                    source_floor=req_orm.source_floor,
-                    target_floor=req_orm.target_floor,
-                    direction=Direction(req_orm.direction),
-                    request_type=RequestType(req_orm.request_type),
-                    status=RequestStatus.PENDING,
-                )
-                self.pending_requests.append(req)
-                self.all_requests.append(req)
-            
-            if pending_orm:
-                logger.info("Restored %d pending requests", len(pending_orm))
-                await self._retry_pending()
+        db_client = get_db_client()
+        
+        # Load elevator positions/status
+        elevators_data = await db_client.load_all_elevators()
+        for data in elevators_data:
+            if data["id"] in self.elevators:
+                self.elevators[data["id"]].current_floor = data["current_floor"]
+                self.elevators[data["id"]].status = ElevatorStatus(data["status"])
+                logger.info("Restored elevator %s: floor=%s status=%s", data["id"], data["current_floor"], data["status"])
+        
+        # Restore pending/assigned requests
+        pending_data = await db_client.get_pending_requests()
+        for req_data in pending_data:
+            req = ElevatorRequest(
+                id=req_data["id"],
+                source_floor=req_data["source_floor"],
+                target_floor=req_data["target_floor"],
+                direction=Direction(req_data["direction"]),
+                request_type=RequestType(req_data["request_type"]),
+                status=RequestStatus.PENDING,
+            )
+            self.pending_requests.append(req)
+            self.all_requests.append(req)
+        
+        if pending_data:
+            logger.info("Restored %d pending requests", len(pending_data))
+            await self._retry_pending()
 
     # ------------------------------------------------------------------
     # Public API
@@ -133,14 +129,13 @@ class ElevatorController:
         self.all_requests.append(req)
         
         # Persist to database
-        async with AsyncSessionLocal() as session:
-            await RequestRepository.save(session, req)
+        db_client = get_db_client()
+        await db_client.save_request(req)
         
         await self._assign_and_enqueue(req)
         
         # Update request status in DB
-        async with AsyncSessionLocal() as session:
-            await RequestRepository.update(session, req)
+        await db_client.update_request(req)
         
         return req
 
@@ -173,8 +168,8 @@ class ElevatorController:
         self.all_requests.append(req)
         
         # Persist to database
-        async with AsyncSessionLocal() as session:
-            await RequestRepository.save(session, req)
+        db_client = get_db_client()
+        await db_client.save_request(req)
 
         async with self._locks[elevator_id]:
             elevator.enqueue_floor(target_floor)
@@ -206,14 +201,13 @@ class ElevatorController:
         logger.info("Elevator %s queue after pop: %s", elevator_id, elevator.floor_queue)
 
         # Log floor visit to history
-        async with AsyncSessionLocal() as session:
-            await HistoryRepository.log_floor_visit(
-                session,
-                elevator_id=elevator_id,
-                floor=elevator.current_floor,
-                status=elevator.status.value,
-                direction=elevator.direction.value,
-            )
+        db_client = get_db_client()
+        await db_client.log_floor_visit(
+            elevator_id=elevator_id,
+            floor=elevator.current_floor,
+            status=elevator.status.value,
+            direction=elevator.direction.value,
+        )
         
         # Mark completed requests
         now = datetime.utcnow()
@@ -230,8 +224,7 @@ class ElevatorController:
                 req.completed_at = now
                 
                 # Update in database
-                async with AsyncSessionLocal() as session:
-                    await RequestRepository.update(session, req)
+                await db_client.update_request(req)
 
         # Retry any pending requests now that this elevator may be free
         await self._retry_pending()
@@ -259,13 +252,11 @@ class ElevatorController:
         if not elevator:
             raise ValueError(f"Elevator {elevator_id} not found")
         
+        db_client = get_db_client()
+        
         if active:
             # Log maintenance start
-            async with AsyncSessionLocal() as session:
-                from app.db.repositories import MaintenanceRepository
-                await MaintenanceRepository.start_maintenance(
-                    session, elevator_id, "Manual maintenance mode"
-                )
+            await db_client.start_maintenance(elevator_id, "Manual maintenance mode")
             
             # Entering maintenance: reassign all requests assigned to this elevator
             async with self._locks[elevator_id]:
@@ -283,8 +274,7 @@ class ElevatorController:
                     self.pending_requests.append(req)
                     
                     # Update in database
-                    async with AsyncSessionLocal() as session:
-                        await RequestRepository.update(session, req)
+                    await db_client.update_request(req)
                     
                     logger.info("Request %s reassigned due to maintenance on elevator %s", req.id, elevator_id)
             
@@ -292,9 +282,7 @@ class ElevatorController:
             await self._retry_pending()
         else:
             # Log maintenance end
-            async with AsyncSessionLocal() as session:
-                from app.db.repositories import MaintenanceRepository
-                await MaintenanceRepository.end_maintenance(session, elevator_id)
+            await db_client.end_maintenance(elevator_id)
             
             # Exiting maintenance
             elevator.status = ElevatorStatus.IDLE
@@ -336,6 +324,47 @@ class ElevatorController:
             "passenger_groups": passenger_groups,
             "active_requests": active_requests,
         }
+
+    def reset_state(self) -> None:
+        """Reset all elevators and requests to initial state."""
+        # Reset elevators to starting positions
+        for ec in self._settings.elevators:
+            if ec.id in self.elevators:
+                elev = self.elevators[ec.id]
+                elev.current_floor = ec.starting_floor
+                elev.status = ElevatorStatus.MAINTENANCE if ec.id in self._settings.modes.maintenance_ids else ElevatorStatus.IDLE
+                elev.direction = Direction.IDLE
+                elev.floor_queue = []
+                elev.passenger_count = 0
+                elev.floors_served = 0
+        
+        self.pending_requests.clear()
+        self.all_requests.clear()
+        self.total_wait_ms = 0.0
+        self.requests_completed = 0
+        logger.info("Controller state reset")
+
+    async def reset_state_with_db(self) -> None:
+        """Reset state and clear database."""
+        db_client = get_db_client()
+        await db_client.clear_pending_requests()
+        
+        for ec in self._settings.elevators:
+            if ec.id in self.elevators:
+                elev = self.elevators[ec.id]
+                elev.current_floor = ec.starting_floor
+                elev.status = ElevatorStatus.MAINTENANCE if ec.id in self._settings.modes.maintenance_ids else ElevatorStatus.IDLE
+                elev.direction = Direction.IDLE
+                elev.floor_queue = []
+                elev.passenger_count = 0
+                elev.floors_served = 0
+                await db_client.upsert_elevator(elev)
+        
+        self.pending_requests.clear()
+        self.all_requests.clear()
+        self.total_wait_ms = 0.0
+        self.requests_completed = 0
+        logger.info("Controller state reset with database")
 
     # ------------------------------------------------------------------
     # Internal helpers

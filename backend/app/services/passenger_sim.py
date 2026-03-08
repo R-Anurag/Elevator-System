@@ -109,8 +109,7 @@ class PassengerSimulationService:
             if not self._running:
                 break
             
-            target_t = start + grp.spawn_at_sec
-            delay = target_t - asyncio.get_event_loop().time()
+            delay = grp.spawn_at_sec
             if delay > 0:
                 await asyncio.sleep(delay)
             
@@ -337,3 +336,14 @@ class PassengerSimulationService:
     def get_groups_snapshot(self) -> List[dict]:
         """Return serializable snapshot for WebSocket broadcast."""
         return [g.to_dict() for g in self._groups.values()]
+
+    def reset(self) -> None:
+        """Reset passenger simulation to initial state."""
+        self._running = False
+        if self._spawn_task:
+            self._spawn_task.cancel()
+        if self._watchdog_task:
+            self._watchdog_task.cancel()
+        self._groups.clear()
+        self._load_scenario()
+        logger.info("Passenger simulation reset")

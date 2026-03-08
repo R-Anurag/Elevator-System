@@ -1,0 +1,119 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: elevator-db
+    secrets:
+      - db_password
+    environment:
+      POSTGRES_USER: elevator_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_DB: elevator_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elevator_user -d elevator_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    restart: unless-stopped
+    networks:
+      - backend
+
+  db-service:
+    build:
+      context: ./db-service
+      dockerfile: Dockerfile
+    container_name: elevator-db-service
+    secrets:
+      - db_password
+    environment:
+      - DATABASE_URL_FILE=/run/secrets/db_password
+    expose:
+      - "8001"
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    restart: unless-stopped
+    networks:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: elevator-backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      db-service:
+        condition: service_started
+    environment:
+      - DB_SERVICE_URL=http://db-service:8001/api
+    command: sh -c "sleep 3 && python run.py"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    restart: unless-stopped
+    networks:
+      - backend
+      - frontend
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: elevator-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    restart: unless-stopped
+    networks:
+      - frontend
+
+volumes:
+  postgres_data:
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge

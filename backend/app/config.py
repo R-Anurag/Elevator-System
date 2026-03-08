@@ -46,9 +46,8 @@ class ModesConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    # Infrastructure — reasonable defaults so devs don't need to touch YAML to run locally.
-    url: str = "sqlite+aiosqlite:///./elevator.db"
-    echo_sql: bool = False
+    # Removed - database is now handled by separate microservice
+    pass
 
 
 class ApiConfig(BaseModel):
@@ -62,13 +61,12 @@ class Settings(BaseModel):
     """
     Master settings object loaded from config.yaml.
     Functional sections (building, simulation, modes) are required.
-    Infrastructure sections (database, api) have safe defaults.
+    Infrastructure sections (api) have safe defaults.
     """
     building: BuildingConfig
     simulation: SimulationConfig
     elevators: List[ElevatorConfig]
     modes: ModesConfig
-    database: DatabaseConfig = DatabaseConfig()
     api: ApiConfig = ApiConfig()
 
     @classmethod

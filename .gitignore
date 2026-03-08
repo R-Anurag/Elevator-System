@@ -16,10 +16,17 @@ build/
 *.sqlite
 *.sqlite3
 
+# Docker
+.env
+
 # Environment variables
 .env
 .env.local
 .env.*.local
+
+# Secrets
+secrets/*.txt
+!secrets/*.example
 
 # IDE
 .vscode/

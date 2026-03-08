@@ -1,31 +1,10 @@
-"""
-app/db/models.py
-SQLAlchemy ORM models for persistence.
-
-Tables:
-  - elevators            Current elevator configuration snapshot
-  - requests             All lift requests (external + internal)
-  - elevator_history     Audit log of elevator state changes
-  - maintenance_logs     Maintenance records
-
-Indexes are chosen to optimise the most common query patterns.
-"""
-from __future__ import annotations
-
 from datetime import datetime
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    func,
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+class Base(DeclarativeBase):
+    pass
 
 
 class ElevatorORM(Base):
@@ -56,9 +35,7 @@ class RequestORM(Base):
     target_floor: Mapped[int | None] = mapped_column(Integer, nullable=True)
     direction: Mapped[str] = mapped_column(String(8), nullable=False)
     request_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    assigned_elevator_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("elevators.id"), nullable=True
-    )
+    assigned_elevator_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("elevators.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="PENDING")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -67,11 +44,8 @@ class RequestORM(Base):
 
 
 class ElevatorHistoryORM(Base):
-    """Records every floor visited by each elevator — useful for analytics."""
     __tablename__ = "elevator_history"
-    __table_args__ = (
-        Index("ix_history_elevator_time", "elevator_id", "timestamp"),
-    )
+    __table_args__ = (Index("ix_history_elevator_time", "elevator_id", "timestamp"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     elevator_id: Mapped[int] = mapped_column(Integer, ForeignKey("elevators.id"))
